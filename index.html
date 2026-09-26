@@ -2,477 +2,832 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#111">
-<title>DeleteMe — iPhone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07090f">
+<title>TCL Controle Digital</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box;
-      -webkit-user-select: none; user-select: none;
-      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #111;
-               overscroll-behavior: none; touch-action: none;
-               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  :root{
+    --bg:#07090f;
+    --card:#12172266;
+    --btn1:#232b3d;
+    --btn2:#1a2131;
+    --line:#ffffff17;
+    --txt:#e6ebf5;
+    --mut:#8b95ab;
+    --acc:#38bdf8;
+    --acc2:#6366f1;
+    --red:#ef4444;
+    --green:#22c55e;
+    --amber:#f59e0b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;
+    background:
+      radial-gradient(1100px 550px at 15% -10%, #14284a88 0%, transparent 60%),
+      radial-gradient(900px 500px at 95% 5%, #241a4d77 0%, transparent 55%),
+      radial-gradient(700px 700px at 50% 110%, #0c203666 0%, transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:430px;margin:0 auto;padding:18px 14px 34px}
 
-  /* vídeo fica "invisível" embaixo do canvas (o iOS exige que esteja tocando) */
-  #video { position: fixed; inset: 0; width: 100%; height: 100%;
-           object-fit: cover; opacity: 0.01; }
-  #tela  { position: fixed; inset: 0; width: 100%; height: 100%;
-           object-fit: cover; background: #111; }
+  /* ---------- cabeçalho ---------- */
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .brand .logo{
+    width:40px;height:40px;border-radius:12px;flex:none;
+    background:linear-gradient(150deg,var(--acc),var(--acc2));
+    display:grid;place-items:center;
+    box-shadow:0 8px 22px -8px #38bdf880;
+  }
+  .brand h1{font-size:16.5px;margin:0;letter-spacing:.2px}
+  .brand p{font-size:11.5px;margin:2px 0 0;color:var(--mut)}
+  .head-actions{display:flex;align-items:center;gap:8px}
+  .pill{
+    font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+    padding:5px 11px;border-radius:999px;border:1px solid transparent;white-space:nowrap;
+  }
+  .pill.off{background:#ef44441d;color:#fca5a5;border-color:#ef444440}
+  .pill.on{background:#22c55e1a;color:#86efac;border-color:#22c55e45}
+  .pill.demo{background:#f59e0b1a;color:#fcd34d;border-color:#f59e0b45}
+  .pill.pair{background:#f59e0b1a;color:#fcd34d;border-color:#f59e0b45;animation:pulse 1.1s infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  .icon-btn{
+    width:40px;height:40px;border-radius:12px;border:1px solid var(--line);
+    background:#161c2a;color:var(--txt);cursor:pointer;display:grid;place-items:center;
+    transition:transform .1s,border-color .2s;
+  }
+  .icon-btn:hover{border-color:#ffffff35}
+  .icon-btn:active{transform:scale(.94)}
 
-  #status { position: fixed; top: calc(env(safe-area-inset-top) + 12px); left: 50%;
-            transform: translateX(-50%); max-width: 92vw; padding: 10px 16px;
-            border-radius: 999px; background: rgba(0,0,0,.55); color: #fff;
-            font-size: 13px; line-height: 1.45; text-align: center; }
-  #status.erro { background: rgba(200,40,40,.8); }
+  /* ---------- corpo do controle ---------- */
+  .remote{
+    background:linear-gradient(180deg,#151b28f2,#0f141ff2);
+    border:1px solid var(--line);
+    border-radius:34px;
+    padding:20px 16px 24px;
+    display:flex;flex-direction:column;gap:17px;
+    box-shadow:0 36px 70px -26px #000c, inset 0 1px 0 #ffffff12;
+    position:relative;overflow:hidden;
+  }
+  .remote::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:1px;
+    background:linear-gradient(90deg,transparent,#ffffff30 30%,#ffffff30 70%,transparent);
+  }
+  .row{display:flex;align-items:center;gap:10px}
 
-  #punho { position: fixed; top: calc(env(safe-area-inset-top) + 58px); left: 50%;
-           transform: translateX(-50%); padding: 8px 18px; border-radius: 999px;
-           background: rgba(255,80,80,.85); color: #fff; font-weight: 700;
-           font-size: 14px; letter-spacing: .4px; }
+  .btn{
+    appearance:none;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--btn1),var(--btn2));
+    color:var(--txt);cursor:pointer;font:inherit;
+    box-shadow:0 3px 0 #0a0e17aa, inset 0 1px 0 #ffffff14;
+    transition:transform .07s, border-color .15s, box-shadow .15s;
+    touch-action:none;user-select:none;-webkit-user-select:none;
+    display:flex;align-items:center;justify-content:center;gap:7px;
+  }
+  .btn:hover{border-color:#ffffff30}
+  .btn:active,.btn.press{
+    transform:translateY(2px) scale(.985);
+    border-color:#38bdf870;
+    box-shadow:0 1px 0 #0a0e17aa, inset 0 1px 0 #ffffff14, 0 0 18px #38bdf825;
+  }
+  .btn:focus-visible,.dbtn:focus-visible,.app:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 
-  #contador { position: fixed; inset: 0; display: flex; align-items: center;
-              justify-content: center; font-size: 160px; font-weight: 800;
-              color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.6); pointer-events: none; }
+  /* linha superior */
+  .top-row{justify-content:space-between}
+  .btn.circle{width:52px;height:52px;border-radius:50%}
+  .btn.power{
+    background:radial-gradient(circle at 32% 28%,#f87171,#dc2626 70%);
+    border-color:#ff808055;color:#fff;
+    box-shadow:0 4px 0 #7f1d1d99, 0 8px 22px -8px #ef444490;
+  }
+  .btn.power:active{box-shadow:0 1px 0 #7f1d1d99, 0 0 20px #ef444465}
+  .btn.pillbtn{padding:0 18px;height:46px;border-radius:23px;font-size:12.5px;font-weight:600;letter-spacing:.4px;color:#c9d3e6}
+  .btn svg{display:block}
 
-  #acoes { position: fixed; left: 0; right: 0;
-           bottom: calc(env(safe-area-inset-bottom) + 14px);
-           display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
-           padding: 0 12px; }
-  .btn { padding: 15px 18px; border-radius: 16px; background: rgba(255,255,255,.16);
-         color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .4px;
-         border: 1.5px solid rgba(255,255,255,.35); cursor: pointer;
-         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-         text-align: center; min-width: 44vw; }
-  .btn:active { transform: scale(.96); background: rgba(255,255,255,.32); }
-  .btn.destaque { background: rgba(60,200,90,.55); border-color: rgba(120,255,160,.8); }
-  .btn.ligado  { background: rgba(220,60,60,.55); border-color: rgba(255,140,140,.8); }
-  .btn[disabled] { opacity: .45; }
+  /* rockers (volume / canal) */
+  .rockers{display:flex;align-items:stretch;gap:10px}
+  .rocker{flex:1;display:flex;flex-direction:column;gap:7px}
+  .rocker .btn{flex:1;min-height:52px;border-radius:16px;font-size:19px;font-weight:700;color:#dce6f7}
+  .rocker .rlabel{
+    text-align:center;font-size:9.5px;letter-spacing:2.5px;color:var(--mut);
+    font-weight:700;white-space:nowrap;
+  }
+  .rocker .rlabel b{color:#cbd5e1;font-weight:800}
+  .midcol{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;width:64px}
+  .midcol .btn.circle{width:48px;height:48px}
+  .midcol .mini{font-size:9.5px;letter-spacing:2px;color:var(--mut);font-weight:700}
 
-  .oculto { display: none !important; }
+  /* D-pad */
+  .dpad-wrap{display:flex;justify-content:center}
+  .dpad{
+    position:relative;width:236px;height:236px;border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 42%, #1b2334 0%, #141a29 55%, #10151f 100%);
+    border:1px solid #ffffff14;
+    box-shadow:inset 0 2px 18px #00000080, 0 10px 30px -12px #000a;
+  }
+  .dpad::after{
+    content:"";position:absolute;inset:26px;border-radius:50%;
+    border:1px dashed #ffffff10;pointer-events:none;
+  }
+  .dbtn{
+    position:absolute;width:66px;height:66px;border:none;background:transparent;
+    color:#aeb9cf;display:grid;place-items:center;cursor:pointer;border-radius:50%;
+    touch-action:none;transition:background .15s,color .1s,transform .07s;
+  }
+  .dbtn:hover{background:#ffffff0d;color:#e2e8f5}
+  .dbtn:active,.dbtn.press{background:#38bdf822;color:var(--acc);transform:scale(.93)}
+  .dbtn.up{top:4px;left:50%;transform:translateX(-50%)}
+  .dbtn.up:active,.dbtn.up.press{transform:translateX(-50%) scale(.93)}
+  .dbtn.down{bottom:4px;left:50%;transform:translateX(-50%)}
+  .dbtn.down:active,.dbtn.down.press{transform:translateX(-50%) scale(.93)}
+  .dbtn.left{left:4px;top:50%;transform:translateY(-50%)}
+  .dbtn.left:active,.dbtn.left.press{transform:translateY(-50%) scale(.93)}
+  .dbtn.right{right:4px;top:50%;transform:translateY(-50%)}
+  .dbtn.right:active,.dbtn.right.press{transform:translateY(-50%) scale(.93)}
+  .dbtn.center{
+    left:50%;top:50%;transform:translate(-50%,-50%);
+    width:78px;height:78px;font-size:15px;font-weight:800;letter-spacing:1px;color:#07131f;
+    background:linear-gradient(155deg,#67e8f9,var(--acc) 45%,var(--acc2));
+    box-shadow:0 0 26px #38bdf855, 0 6px 16px -6px #000c;
+    z-index:2;
+  }
+  .dbtn.center:active,.dbtn.center.press{transform:translate(-50%,-50%) scale(.94);box-shadow:0 0 34px #38bdf8aa}
+
+  /* navegação */
+  .nav-row{gap:8px}
+  .btn.nav{
+    flex:1;flex-direction:column;gap:5px;height:64px;border-radius:18px;
+    font-size:10px;letter-spacing:.8px;color:#b7c1d6;font-weight:600;
+  }
+  .btn.nav svg{opacity:.9}
+
+  /* mídia */
+  .media-row{gap:8px}
+  .btn.media{flex:1;height:46px;border-radius:23px;font-size:15px}
+
+  /* numpad */
+  .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .numpad.hidden{display:none}
+  .numpad .btn{height:50px;border-radius:15px;font-size:17px;font-weight:600}
+
+  /* apps */
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .app{
+    appearance:none;border:1px solid var(--line);background:#151b29cc;
+    border-radius:16px;padding:10px 4px 8px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    transition:transform .1s, border-color .15s;
+    touch-action:manipulation;
+  }
+  .app:hover{border-color:#ffffff30}
+  .app:active{transform:scale(.95);border-color:#38bdf870}
+  .app b{
+    width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+    font-size:15px;font-weight:800;color:#fff;
+    background:var(--c,#333);
+    box-shadow:0 4px 12px -4px var(--c,#333)99;
+  }
+  .app span{font-size:9.5px;color:var(--mut);letter-spacing:.2px}
+
+  .section-label{
+    text-align:center;font-size:9.5px;letter-spacing:3px;color:#667089;
+    font-weight:700;margin:-4px 0 -6px;
+  }
+
+  /* rodapé */
+  footer{margin-top:14px;text-align:center;font-size:11px;color:#5f6a80;line-height:1.7}
+  footer kbd{
+    background:#141a28;border:1px solid #ffffff1c;border-bottom-width:2px;
+    border-radius:5px;padding:1px 5px;font-size:10px;font-family:inherit;color:#aab4c9;
+  }
+
+  /* ---------- modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:#04060bc7;backdrop-filter:blur(5px);
+    z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;
+    opacity:1;transition:opacity .18s;
+  }
+  .overlay.hidden{display:none}
+  .sheet{
+    width:100%;max-width:430px;max-height:88vh;overflow-y:auto;
+    background:linear-gradient(180deg,#161d2c,#111624);
+    border:1px solid #ffffff1c;border-radius:24px;padding:20px 18px 22px;
+    box-shadow:0 40px 90px -30px #000;
+    animation:rise .22s ease;
+  }
+  @keyframes rise{from{transform:translateY(16px);opacity:.4}}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .sheet-head h2{margin:0;font-size:16px}
+  .close-btn{
+    width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+    background:#1a2131;color:var(--mut);font-size:18px;cursor:pointer;line-height:1;
+  }
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:6px;letter-spacing:.4px;font-weight:600}
+  select,input[type=text],input[type=tel]{
+    width:100%;box-sizing:border-box;background:#0d1320;border:1px solid #ffffff1f;
+    color:var(--txt);border-radius:13px;padding:11px 13px;font:inherit;font-size:14px;
+    outline:none;transition:border-color .15s;
+  }
+  select:focus,input:focus{border-color:#38bdf885}
+  .ip-row{display:flex;gap:8px}
+  .ip-row input{flex:1}
+  .btn.primary{
+    background:linear-gradient(155deg,var(--acc),var(--acc2));
+    border:none;color:#06131f;font-weight:700;box-shadow:0 5px 16px -6px #38bdf890;
+    padding:0 16px;height:44px;border-radius:13px;font-size:13.5px;
+  }
+  .btn.primary:active{transform:translateY(2px)}
+  .btn.ghost{
+    width:100%;height:43px;border-radius:13px;background:#141b2a;border:1px solid #ffffff22;
+    font-size:13px;color:#c4cee2;font-weight:600;
+  }
+  .btn.ghost:active{transform:translateY(2px)}
+  .btn.small{height:43px;padding:0 15px;border-radius:13px;font-size:13.5px;font-weight:700}
+  .discover-list{display:flex;flex-direction:column;gap:7px;margin-top:9px}
+  .discover-list button{
+    text-align:left;background:#101728;border:1px solid #ffffff1f;border-radius:12px;
+    color:var(--txt);padding:10px 13px;font:inherit;font-size:13px;cursor:pointer;
+    display:flex;justify-content:space-between;gap:8px;align-items:center;
+  }
+  .discover-list button:hover{border-color:#38bdf870}
+  .discover-list button b{color:var(--acc);font-size:12.5px}
+  .info-box{
+    background:#0d1526;border-left:3px solid var(--acc);border-radius:0 12px 12px 0;
+    padding:11px 13px;font-size:12.5px;line-height:1.55;color:#9fb0cb;
+    white-space:pre-wrap;word-break:break-word;min-height:20px;
+  }
+  .info-box.err{border-left-color:var(--red);color:#f3b4b4}
+  .pair-row{display:flex;gap:8px}
+  .pair-row input{flex:1;text-align:center;letter-spacing:6px;font-size:18px;font-weight:700}
+  details{
+    background:#101728;border:1px solid #ffffff17;border-radius:14px;
+    padding:11px 14px;font-size:13px;color:#b9c4d8;
+  }
+  summary{cursor:pointer;font-weight:700;font-size:12.5px;color:#cfd8ea;letter-spacing:.3px}
+  details ol{margin:10px 0 6px;padding-left:19px;line-height:1.75;font-size:12.5px}
+  details p{margin:8px 0 2px;font-size:12.5px;color:#8fa0bd;line-height:1.6}
+  .muted{font-size:11.5px;color:#6b7690;margin-top:7px;line-height:1.55}
+  .hidden{display:none !important}
+
+  /* toast */
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:#1a2335f2;border:1px solid #ffffff28;border-radius:14px;
+    padding:11px 17px;font-size:13px;color:#e7edf8;z-index:99;max-width:88vw;
+    box-shadow:0 18px 40px -14px #000;animation:rise .2s ease;
+    text-align:center;
+  }
+  .toast.err{border-color:#ef444465;color:#fecaca;background:#2a151bf2}
+  .toast.hidden{display:none}
+
+  @media (max-width:370px){
+    .dpad{width:212px;height:212px}
+    .btn.pillbtn{padding:0 12px}
+  }
 </style>
 </head>
 <body>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="tela"></canvas>
+<div class="app">
 
-  <div id="status">Toque no botão verde para começar.</div>
-  <div id="punho" class="oculto">✊ punho detectado</div>
-  <div id="contador" class="oculto">5</div>
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#04121d" stroke-width="2.2" stroke-linecap="round">
+          <rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8.5 21h7M12 17.5V21"/>
+        </svg>
+      </div>
+      <div>
+        <h1>TCL Controle Digital</h1>
+        <p>Controle remoto da sua TCL Android TV</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <span id="statusPill" class="pill demo">DEMO</span>
+      <button class="icon-btn" id="gearBtn" title="Configurações" aria-label="Configurações">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h0a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
 
-  <div id="acoes">
-    <div class="btn destaque" id="btnCamera">📷 PERMITIR CÂMERA E COMEÇAR</div>
-    <div class="btn" id="btnFundo">CAPTURAR FUNDO (5s)</div>
-    <div class="btn" id="btnEfeito">LIGAR EFEITO</div>
-    <div class="btn" id="btnBbox">CAIXA DA PESSOA: ON</div>
+  <main class="remote">
+
+    <!-- energia / fonte / números -->
+    <div class="row top-row">
+      <button class="btn circle power" data-key="POWER" title="Ligar/Desligar" aria-label="Ligar ou desligar">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+          <path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/>
+        </svg>
+      </button>
+      <button class="btn pillbtn" data-key="INPUT" title="Trocar de fonte/HDMI">FONTE</button>
+      <button class="btn pillbtn" id="numToggle" title="Teclado numérico">NÚMEROS</button>
+      <button class="btn circle" data-key="MENU" title="Menu" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h10"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- volume / canais -->
+    <div class="rockers">
+      <div class="rocker">
+        <button class="btn" data-key="VOL_UP" data-repeat aria-label="Volume mais">+</button>
+        <div class="rlabel"><b id="volLabel">VOL 10</b></div>
+        <button class="btn" data-key="VOL_DOWN" data-repeat aria-label="Volume menos">−</button>
+      </div>
+      <div class="midcol">
+        <button class="btn circle" id="muteBtn" data-key="MUTE" title="Mudo" aria-label="Mudo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 9.5v5h3.5L12 19V5L7.5 9.5H4z"/>
+            <path class="wave1" d="M15.5 9a4.2 4.2 0 0 1 0 6"/>
+            <path class="wave2" d="M18 6.5a7.6 7.6 0 0 1 0 11"/>
+            <path class="xmute hidden" d="M15.5 9.5l5 5m0-5l-5 5" stroke="#ef4444" stroke-width="2.2"/>
+          </svg>
+        </button>
+        <div class="mini" id="chLabel">CANAL</div>
+      </div>
+      <div class="rocker">
+        <button class="btn" data-key="CH_UP" data-repeat aria-label="Canal seguinte">▴</button>
+        <div class="rlabel"><b>CH</b></div>
+        <button class="btn" data-key="CH_DOWN" data-repeat aria-label="Canal anterior">▾</button>
+      </div>
+    </div>
+
+    <!-- D-pad -->
+    <div class="dpad-wrap">
+      <div class="dpad" id="dpad">
+        <button class="dbtn up" data-key="UP" data-repeat aria-label="Cima">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+        </button>
+        <button class="dbtn right" data-key="RIGHT" data-repeat aria-label="Direita">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="dbtn down" data-key="DOWN" data-repeat aria-label="Baixo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="dbtn left" data-key="LEFT" data-repeat aria-label="Esquerda">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="dbtn center" data-key="OK" aria-label="OK">OK</button>
+      </div>
+    </div>
+
+    <!-- voltar / home / info -->
+    <div class="row nav-row">
+      <button class="btn nav" data-key="BACK" title="Voltar">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H6"/><path d="M11 6l-6 6 6 6"/></svg>
+        VOLTAR
+      </button>
+      <button class="btn nav" data-key="HOME" title="Início">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6.5 10.5V20h11v-9.5"/></svg>
+        INÍCIO
+      </button>
+      <button class="btn nav" data-key="INFO" title="Informações">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r=".4" fill="currentColor"/></svg>
+        INFO
+      </button>
+      <button class="btn nav" data-key="OK" title="OK">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        OK
+      </button>
+    </div>
+
+    <!-- mídia -->
+    <div class="section-label">MÍDIA</div>
+    <div class="row media-row">
+      <button class="btn media" data-key="PREV" aria-label="Anterior">⏮</button>
+      <button class="btn media" data-key="REW" aria-label="Retroceder">⏪</button>
+      <button class="btn media" data-key="PLAY_PAUSE" aria-label="Reproduzir ou pausar">⏯</button>
+      <button class="btn media" data-key="FF" aria-label="Avançar">⏩</button>
+      <button class="btn media" data-key="NEXT" aria-label="Próxima">⏭</button>
+    </div>
+
+    <!-- numpad (alternável) -->
+    <div class="numpad hidden" id="numpad">
+      <button class="btn" data-key="1">1</button>
+      <button class="btn" data-key="2">2</button>
+      <button class="btn" data-key="3">3</button>
+      <button class="btn" data-key="4">4</button>
+      <button class="btn" data-key="5">5</button>
+      <button class="btn" data-key="6">6</button>
+      <button class="btn" data-key="7">7</button>
+      <button class="btn" data-key="8">8</button>
+      <button class="btn" data-key="9">9</button>
+      <button class="btn" data-key="STAR">*</button>
+      <button class="btn" data-key="0">0</button>
+      <button class="btn" data-key="POUND">#</button>
+    </div>
+
+    <!-- apps -->
+    <div class="section-label">APPS</div>
+    <div class="apps">
+      <button class="app" data-app="netflix" style="--c:#e50914"><b>N</b><span>Netflix</span></button>
+      <button class="app" data-app="youtube" style="--c:#ff0033"><b>▶</b><span>YouTube</span></button>
+      <button class="app" data-app="prime" style="--c:#00a8e1"><b>p</b><span>Prime</span></button>
+      <button class="app" data-app="disney" style="--c:#2451e6"><b>D+</b><span>Disney+</span></button>
+      <button class="app" data-app="max" style="--c:#7b2ff7"><b>M</b><span>Max</span></button>
+      <button class="app" data-app="spotify" style="--c:#1db954"><b>♪</b><span>Spotify</span></button>
+      <button class="app" data-app="globoplay" style="--c:#ff3d5a"><b>G</b><span>GloboPlay</span></button>
+      <button class="app" data-app="kodi" style="--c:#2aa9e0"><b>K</b><span>Kodi</span></button>
+    </div>
+
+  </main>
+
+  <footer id="footerHint">
+    Servidor local · mesma rede Wi-Fi da TV<br>
+    Teclado: <kbd>↑↓←→</kbd> navegar · <kbd>Enter</kbd> OK · <kbd>Esc</kbd> voltar · <kbd>M</kbd> mudo · <kbd>+ −</kbd> volume
+  </footer>
+</div>
+
+<!-- ==================== configurações ==================== -->
+<div class="overlay hidden" id="overlay">
+  <div class="sheet" role="dialog" aria-label="Configurações">
+    <div class="sheet-head">
+      <h2>⚙️ Configurações</h2>
+      <button class="close-btn" id="closeBtn" aria-label="Fechar">×</button>
+    </div>
+
+    <div class="field">
+      <label for="modeSel">MODO DE CONEXÃO</label>
+      <select id="modeSel">
+        <option value="auto">Automático (recomendado)</option>
+        <option value="remote">Pareamento remoto (sem modo desenvolvedor)</option>
+        <option value="adb">ADB / depuração de rede</option>
+        <option value="demo">Demonstração (sem TV)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="ipInput">IP DA TV</label>
+      <div class="ip-row">
+        <input type="text" id="ipInput" placeholder="192.168.0.15" autocomplete="off" spellcheck="false">
+        <button class="btn primary small" id="saveBtn">Salvar</button>
+      </div>
+      <div style="height:8px"></div>
+      <button class="btn ghost" id="discoverBtn">📡 Descobrir TV na rede</button>
+      <div class="discover-list hidden" id="discoverList"></div>
+    </div>
+
+    <div class="field" id="pairSection">
+      <label>PAREAMENTO (CÓDIGO APARECE NA TV)</label>
+      <button class="btn ghost" id="pairStartBtn">🔑 Iniciar pareamento</button>
+      <div class="pair-row hidden" id="pairCodeRow" style="margin-top:8px">
+        <input type="tel" id="pairCode" placeholder="––––––" maxlength="6" inputmode="numeric" autocomplete="off">
+        <button class="btn primary small" id="pairFinishBtn">Concluir</button>
+      </div>
+      <div class="muted">Use quando não quiser ativar o modo desenvolvedor da TV. O mesmo código vale só uma vez.</div>
+    </div>
+
+    <div class="field">
+      <label for="textInput">ENVIAR TEXTO PARA A TV (campos de busca)</label>
+      <div class="ip-row">
+        <input type="text" id="textInput" placeholder="Digite aqui…" autocomplete="off">
+        <button class="btn primary small" id="textSendBtn">Enviar</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>STATUS</label>
+      <div class="info-box" id="connInfo">Carregando…</div>
+    </div>
+
+    <details>
+      <summary>Como configurar na TCL Android TV (passo a passo)</summary>
+      <ol>
+        <li>Na TV: <b>Configurações → Preferências do dispositivo → Sobre</b> e clique 7 vezes em <b>“Número da compilação”</b> até ativar as <b>Opções do desenvolvedor</b>.</li>
+        <li>Voltte em <b>Preferências do dispositivo → Opções do desenvolvedor</b> e ative <b>“Depuração de rede”</b> (ou “Depuração USB”).</li>
+        <li>Descubra o IP da TV em <b>Configurações → Rede → Status</b> (ou use “Descobrir TV na rede” aqui em cima).</li>
+        <li>Na <b>primeira conexão</b>, espere o aviso <b>“Permitir depuração?”</b> e clique em <b>Permitir</b> na tela da TV.</li>
+      </ol>
+      <p><b>Alternativa sem modo desenvolvedor:</b> escolha o modo “Pareamento remoto” e use “Iniciar pareamento” — a TV mostra um código de 6 dígitos.</p>
+      <p>Dica: o PC/celular que roda este site precisa estar na <b>mesma rede Wi-Fi</b> da TV. Se a TV estiver desligada da tomada, não há como ligá-la pela rede.</p>
+    </details>
   </div>
+</div>
 
-  <canvas id="fundo" class="oculto"></canvas>
+<div class="toast hidden" id="toast"></div>
 
-  <script>
-'use strict';
+<script>
+"use strict";
+const $  = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-/* ============================================================
-   Lógica pura (a mesma de logica.mjs — espelhada aqui para o
-   app ser um arquivo único, sem imports que possam falhar)
-   ============================================================ */
-function DebounceTempo(ms) {
-  this.ms = ms;
-  this.state = false;
-  this.desde = null;
-}
-DebounceTempo.prototype.update = function (state, agoraMs) {
-  if (state === this.state) {
-    this.desde = null;
-    return this.state;
-  }
-  if (this.desde === null) this.desde = agoraMs;
-  if (agoraMs - this.desde >= this.ms) {
-    this.state = state;
-    this.desde = null;
-  }
-  return this.state;
+/* ---------------- estado ---------------- */
+let st = {
+  mode:"auto", tv_ip:"", connected:false, active:null,
+  demo:true, demo_reason:"", pairing_needed:false, error:null, info:{}
 };
+let localVol = 10, localMax = 15, localMuted = false;
+let lastAction = "";
 
-function distancia(a, b) {
-  const dx = a.x - b.x, dy = a.y - b.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-function contarDedosEstendidos(landmarks) {
-  const pulso = landmarks[0];
-  const pares = [[8, 6], [12, 10], [16, 14], [20, 18]];
-  let n = 0;
-  for (const par of pares) {
-    if (distancia(landmarks[par[0]], pulso) > distancia(landmarks[par[1]], pulso)) n++;
-  }
-  return n;
-}
-function classificarMao(landmarks) {
-  if (!landmarks || landmarks.length === 0) return null;
-  return contarDedosEstendidos(landmarks) < 3;
-}
-function maiorBBoxPessoa(detections, largura, altura, padding) {
-  padding = (padding === undefined) ? 10 : padding;
-  let area = 0, bbox = null;
-  for (const d of detections) {
-    const b = d.boundingBox;
-    if (!b) continue;
-    if (b.width * b.height > area) {
-      area = b.width * b.height;
-      const x = Math.max(0, Math.trunc(b.originX) - padding);
-      const y = Math.max(0, Math.trunc(b.originY) - padding);
-      const w = Math.min(largura - x, Math.trunc(b.width) + padding * 2);
-      const h = altura - y;
-      bbox = { x: x, y: y, w: w, h: h };
-    }
-  }
-  return bbox;
-}
-
-/* ============================================================
-   Estado e elementos
-   ============================================================ */
-const video = document.getElementById('video');
-const tela = document.getElementById('tela');
-const ctx = tela.getContext('2d');
-const fundoCv = document.getElementById('fundo');
-const fundoCtx = fundoCv.getContext('2d');
-const elStatus = document.getElementById('status');
-const elPunho = document.getElementById('punho');
-const elContador = document.getElementById('contador');
-const btnCamera = document.getElementById('btnCamera');
-const btnFundo = document.getElementById('btnFundo');
-const btnEfeito = document.getElementById('btnEfeito');
-const btnBbox = document.getElementById('btnBbox');
-
-function status(t, erro) {
-  elStatus.textContent = t;
-  elStatus.classList.toggle('erro', !!erro);
-}
-
-const estado = new DebounceTempo(200);      // 200 ms de debounce, baseado em tempo
-let mp = null, detector = null, mao = null;
-let stream = null, modo = 'user';           // 'user' = frontal · 'environment' = traseira
-let fundoOk = false, efeito = false, mostrarCaixa = true, capturando = false;
-let modelosProntos = false, carregandoModelos = false;
-
-// cadência das análises de IA — a câmera continua lisa entre elas
-const INTERVALO_MAO = 60;                   // ~15 Hz — suficiente para o punho
-const INTERVALO_PESSOA = 200;               // ~5 Hz — a caixa da pessoa muda devagar
-let ultimaMaoT = -1e9, ultimaPessoaT = -1e9;
-let fechadaAtual = null, ultimoBBox = null;
-
-const forcadoCdn = location.search.indexOf('cdn') >= 0;
-const forcadoCpu = location.search.indexOf('cpu') >= 0;
-const forcadoGpu = location.search.indexOf('gpu') >= 0;
-// no celular o WASM SIMD (CPU) costuma ser mais rápido que o delegado GPU do Safari
-const ehCelular = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
-const tentarGpu = forcadoGpu || (!forcadoCpu && !ehCelular);
-
-// quadro reduzido para os modelos (a caixa é redimensionada de volta)
-const DET_W = 320;
-const detCv = document.createElement('canvas');
-const detCtx = detCv.getContext('2d');
-
-/* ============================================================
-   Endereços: primeiro os arquivos locais; se faltarem, CDN
-   ============================================================ */
-const CDN_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm';
-const CDN_BUNDLE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
-const MODELOS = {
-  det: {
-    local: './models/efficientdet_lite0.tflite',
-    cdn: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
-  },
-  mao: {
-    local: './models/hand_landmarker.task',
-    cdn: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-  }
-};
-
-async function existe(url) {
+/* ---------------- util ---------------- */
+async function api(path, body, timeoutMs = 9000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-    return r.ok;
-  } catch (e) { return false; }
-}
-
-async function baixarBuffer(url, aoProgresso) {
-  const resp = await fetch(url, { cache: 'force-cache' });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ao baixar ' + url);
-  const total = Number(resp.headers.get('Content-Length')) || 0;
-  const reader = resp.body.getReader();
-  const partes = [];
-  let lidos = 0;
-  for (;;) {
-    const r = await reader.read();
-    if (r.done) break;
-    partes.push(r.value);
-    lidos += r.value.length;
-    if (aoProgresso) aoProgresso(lidos, total);
-  }
-  const buf = new Uint8Array(lidos);
-  let off = 0;
-  for (const p of partes) { buf.set(p, off); off += p.length; }
-  return buf;
-}
-
-function comTimeout(promessa, ms, oQue) {
-  return Promise.race([
-    promessa,
-    new Promise((_, rejeita) => setTimeout(() => rejeita(new Error('tempo esgotado: ' + oQue)), ms))
-  ]);
-}
-
-/* ============================================================
-   Carregamento da biblioteca + modelos (com diagnóstico)
-   ============================================================ */
-async function criarModelo(criar, fileset, opcoes) {
-  if (tentarGpu) {
-    try {
-      return await comTimeout(criar.createFromOptions(fileset, Object.assign({}, opcoes,
-        { baseOptions: Object.assign({}, opcoes.baseOptions, { delegate: 'GPU' }) })),
-        10000, 'GPU');
-    } catch (e) {
-      console.warn('GPU não rolou, usando CPU:', e);
-    }
-  }
-  return await comTimeout(criar.createFromOptions(fileset, opcoes), 60000, 'CPU');
-}
-
-async function carregarModelos() {
-  if (carregandoModelos || modelosProntos) return;
-  carregandoModelos = true;
-  try {
-    // --- biblioteca de visão (local ou CDN) ---
-    const localOk = !forcadoCdn && (await existe('./tasks-vision/vision_wasm_internal.js'));
-    const origemWasm = localOk ? './tasks-vision' : CDN_WASM;
-
-    status('Carregando biblioteca de visão (' + (localOk ? 'local' : 'online') + ')…');
-    if (localOk) {
-      mp = await import('./tasks-vision/vision_bundle.mjs');
-    } else {
-      mp = await import(CDN_BUNDLE);
-    }
-    const fileset = await mp.FilesetResolver.forVisionTasks(origemWasm);
-
-    // --- modelos (local ou CDN, com progresso) ---
-    async function pegarModelo(ref, nome) {
-      const usarLocal = !forcadoCdn && (await existe(ref.local));
-      const url = usarLocal ? ref.local : ref.cdn;
-      return {
-        buffer: await baixarBuffer(url, (lidos, total) => {
-          const pct = total ? Math.round(lidos / total * 100) + '%' : (lidos / 1048576).toFixed(1) + 'MB';
-          status('Baixando ' + nome + '… ' + pct + (usarLocal ? '' : ' (online)'));
-        }),
-        fonte: usarLocal ? 'local' : 'online'
-      };
-    }
-
-    const a = await pegarModelo(MODELOS.det, 'detector de pessoas');
-    const b = await pegarModelo(MODELOS.mao, 'detector de mãos');
-    status('Carregando os modelos na memória…');
-
-    detector = await criarModelo(mp.ObjectDetector, fileset, {
-      baseOptions: { modelAssetBuffer: a.buffer },
-      runningMode: 'VIDEO',
-      scoreThreshold: 0.5,
-      categoryAllowlist: ['person']
+    const r = await fetch(path, {
+      method : body ? "POST" : "GET",
+      headers: {"Content-Type":"application/json"},
+      body   : body ? JSON.stringify(body) : undefined,
+      signal : ctrl.signal
     });
-    mao = await criarModelo(mp.HandLandmarker, fileset, {
-      baseOptions: { modelAssetBuffer: b.buffer },
-      runningMode: 'VIDEO',
-      numHands: 1
-    });
-
-    modelosProntos = true;
-    const origem = (a.fonte === 'local' && b.fonte === 'local') ? 'locais' : 'online';
-    status(stream
-      ? 'Tudo pronto (' + origem + ')! Feche o punho para se apagar.'
-      : 'Tudo pronto (' + origem + ')! Toque no botão verde e permita a câmera.');
-  } catch (e) {
-    console.error(e);
-    status('Erro ao carregar os modelos: ' + (e && e.message ? e.message : e) +
-      ' — se você publicou só o HTML, os arquivos models/ e tasks-vision/ podem estar faltando.', true);
+    let j = {};
+    try { j = await r.json(); } catch (e) {}
+    if (!r.ok) {
+      const err = new Error(j.detail || ("Erro " + r.status));
+      err.pairing_needed = !!j.pairing_needed;
+      throw err;
+    }
+    return j;
   } finally {
-    carregandoModelos = false;
+    clearTimeout(t);
   }
 }
 
-/* ============================================================
-   Câmera (a permissão aparece no primeiro toque do botão)
-   ============================================================ */
-async function iniciarCamera() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    status('Este recurso precisa de HTTPS. Abra pelo link do site, não como arquivo.', true);
-    return;
-  }
-  if (stream) stream.getTracks().forEach(t => t.stop());
+let toastTimer = null;
+function toast(msg, isErr) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.classList.toggle("err", !!isErr);
+  el.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 3400);
+}
+
+function applyStatus(s) {
+  st = Object.assign({}, st, s);
+  render();
+}
+
+async function refresh() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: modo, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
+    applyStatus(await api("/api/status", null, 5000));
   } catch (e) {
-    const n = e && e.name;
-    if (n === 'NotAllowedError' || n === 'SecurityError') {
-      status('Você negou a câmera. No Safari: toque em "AA" na barra de endereço → ' +
-        'Configurações do site → Câmera → Permitir e recarregue. Depois toque no botão verde.', true);
-    } else if (n === 'NotFoundError') {
-      status('Nenhuma câmera encontrada neste aparelho.', true);
-    } else if (n === 'NotReadableError') {
-      status('A câmera está em uso por outro app. Feche-o e tente de novo.', true);
+    $("#statusPill").textContent = "OFFLINE";
+    $("#statusPill").className = "pill off";
+  }
+}
+
+/* ---------------- render ---------------- */
+function render() {
+  const pill = $("#statusPill");
+  if (st.pairing_needed)      { pill.textContent = "PAREAR"; pill.className = "pill pair"; }
+  else if (st.demo)           { pill.textContent = "DEMO";   pill.className = "pill demo"; }
+  else if (st.connected)      { pill.textContent = st.active === "ADB (rede)" ? "ADB" : "TV OK"; pill.className = "pill on"; }
+  else                        { pill.textContent = "OFFLINE"; pill.className = "pill off"; }
+
+  // volume
+  const vi = st.info && st.info.volume;
+  if (vi && typeof vi.level === "number") {
+    localVol = vi.level; localMuted = !!vi.muted;
+    if (vi.max) localMax = vi.max;
+  }
+  $("#volLabel").textContent = localMuted ? "MUDO" : "VOL " + localVol;
+  $$(".xmute").forEach(e => e.classList.toggle("hidden", !localMuted));
+  $$(".wave1,.wave2").forEach(e => e.style.opacity = localMuted ? "0" : "1");
+
+  // info do modal
+  const box = $("#connInfo");
+  let txt = "";
+  if (st.demo) {
+    txt = "📺 Modo demonstração" + (st.demo_reason ? " — " + st.demo_reason : "") + "\n" +
+          "Informe o IP da TV (ou clique em Descobrir) e escolha um modo para controlar a TV de verdade.";
+  } else if (st.connected) {
+    txt = "✅ Conectado à TV " + (st.tv_ip ? st.tv_ip : "") + " via " + (st.active || "?") + ".";
+    const app = st.info && st.info.app;
+    if (app) txt += "\nApp aberto: " + app;
+    if (st.info && typeof st.info.is_on === "boolean")
+      txt += "\nTV: " + (st.info.is_on ? "ligada" : "desligada/standby");
+  } else if (st.pairing_needed) {
+    txt = "🔑 " + (st.error || "A TV precisa ser pareada.");
+  } else {
+    txt = "⏳ Não conectado" + (st.tv_ip ? " (TV " + st.tv_ip + ")" : "") + ".";
+    if (st.error) txt += "\n" + st.error;
+  }
+  if (lastAction) txt += "\nÚltima ação: " + lastAction;
+  box.textContent = txt;
+  box.classList.toggle("err", !!(st.error && !st.connected && !st.demo && !st.pairing_needed));
+
+  // campos de config
+  $("#modeSel").value = st.mode;
+  if (document.activeElement !== $("#ipInput")) $("#ipInput").value = st.tv_ip || "";
+  const canPair = (st.mode === "auto" || st.mode === "remote");
+  $("#pairSection").classList.toggle("hidden", !canPair);
+
+  // rodapé
+  $("#footerHint").innerHTML = st.demo
+    ? "Modo <b>DEMO</b> — os botões funcionam, mas nenhuma TV está sendo controlada.<br>Abra ⚙️ e informe o IP da TV."
+    : 'Servidor local · mesma rede Wi-Fi da TV<br>Teclado: <kbd>↑↓←→</kbd> navegar · <kbd>Enter</kbd> OK · <kbd>Esc</kbd> voltar · <kbd>M</kbd> mudo · <kbd>+ −</kbd> volume';
+}
+
+/* ---------------- enviar teclas ---------------- */
+function flash(key) {
+  const el = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
+  if (!el) return;
+  el.classList.add("press");
+  setTimeout(() => el.classList.remove("press"), 130);
+}
+
+async function sendKey(key) {
+  flash(key);
+  if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+  // volume simulado enquanto em demo (o servidor também conta; isto é só feedback visual)
+  try {
+    const j = await api("/api/key", {key});
+    if (j && j.active) st.active = j.active;
+    lastAction = key;
+  } catch (e) {
+    if (e.name === "AbortError") { toast("TV sem resposta — verifique a conexão.", true); return; }
+    toast(e.message, true);
+    if (e.pairing_needed) { st.pairing_needed = true; render(); openSheet(); }
+    refresh();
+  }
+}
+
+async function launchApp(app) {
+  try {
+    const j = await api("/api/launch", {app});
+    lastAction = "abrir " + app;
+    toast("Abrindo " + app + (st.demo ? " (demo)" : "") + "…");
+    refresh();
+  } catch (e) {
+    toast(e.message, true);
+    if (e.pairing_needed) { st.pairing_needed = true; render(); openSheet(); }
+  }
+}
+
+/* cliques com repetição (volume, canais, d-pad) */
+$$("[data-key]").forEach(el => {
+  const key = el.getAttribute("data-key");
+  const canRepeat = el.hasAttribute("data-repeat");
+  let holdT = null, repT = null;
+
+  const start = (ev) => {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    ev.preventDefault();
+    sendKey(key);
+    if (canRepeat) {
+      holdT = setTimeout(() => { repT = setInterval(() => sendKey(key), 160); }, 420);
+    }
+  };
+  const stop = () => { clearTimeout(holdT); clearInterval(repT); holdT = repT = null; };
+
+  el.addEventListener("pointerdown", start);
+  el.addEventListener("pointerup", stop);
+  el.addEventListener("pointerleave", stop);
+  el.addEventListener("pointercancel", stop);
+  el.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && !e.repeat) { e.preventDefault(); sendKey(key); }
+  });
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+});
+
+$$("[data-app]").forEach(el => {
+  el.addEventListener("click", () => launchApp(el.getAttribute("data-app")));
+});
+
+/* numpad */
+$("#numToggle").addEventListener("click", () => {
+  $("#numpad").classList.toggle("hidden");
+});
+
+/* ---------------- teclado físico ---------------- */
+const KEYMAP = {
+  ArrowUp:"UP", ArrowDown:"DOWN", ArrowLeft:"LEFT", ArrowRight:"RIGHT",
+  Enter:"OK", " ":"PLAY_PAUSE",
+  Escape:"BACK", Backspace:"BACK",
+  m:"MUTE", M:"MUTE", i:"INFO", I:"INFO", h:"HOME", H:"HOME",
+  "+":"VOL_UP", "=":"VOL_UP", "-":"VOL_DOWN", "_":"VOL_DOWN",
+  "0":"0","1":"1","2":"2","3":"3","4":"4","5":"5","6":"6","7":"7","8":"8","9":"9"
+};
+document.addEventListener("keydown", (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || "";
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+    if (e.key === "Escape") closeSheet();
+    return;
+  }
+  const k = KEYMAP[e.key];
+  if (!k) return;
+  e.preventDefault();
+  sendKey(k);
+});
+
+/* ---------------- modal ---------------- */
+function openSheet()  { $("#overlay").classList.remove("hidden"); }
+function closeSheet() { $("#overlay").classList.add("hidden"); }
+
+$("#gearBtn").addEventListener("click", () => { openSheet(); refresh(); });
+$("#closeBtn").addEventListener("click", closeSheet);
+$("#overlay").addEventListener("click", (e) => { if (e.target === $("#overlay")) closeSheet(); });
+
+async function saveConfig(patch) {
+  try {
+    const s = await api("/api/config", patch, 25000);
+    applyStatus(s);
+    return true;
+  } catch (e) {
+    toast(e.message, true);
+    refresh();
+    return false;
+  }
+}
+
+$("#saveBtn").addEventListener("click", async () => {
+  const btn = $("#saveBtn");
+  btn.disabled = true; btn.textContent = "…";
+  const ok = await saveConfig({tv_ip: $("#ipInput").value.trim()});
+  btn.disabled = false; btn.textContent = "Salvar";
+  if (ok) { toast(st.connected ? "✅ Conectado à TV!" : "IP salvo."); lastAction = ""; }
+});
+
+$("#modeSel").addEventListener("change", async () => {
+  const ok = await saveConfig({mode: $("#modeSel").value});
+  if (ok) toast("Modo atualizado.");
+});
+
+$("#discoverBtn").addEventListener("click", async () => {
+  const btn = $("#discoverBtn");
+  btn.disabled = true; btn.textContent = "🔎 Procurando na rede…";
+  try {
+    const j = await api("/api/discover", {}, 12000);
+    const list = $("#discoverList");
+    list.innerHTML = "";
+    if (!j.devices || !j.devices.length) {
+      list.innerHTML = '<div class="muted">Nenhuma TV encontrada. Verifique se está na mesma rede e digite o IP manualmente (ex.: 192.168.0.15).</div>';
     } else {
-      status('Não consegui abrir a câmera: ' + (e && e.message ? e.message : e), true);
+      j.devices.forEach(d => {
+        const b = document.createElement("button");
+        b.innerHTML = "<span>📺 " + d.name.replace(/</g,"&lt;") + "</span><b>" + d.ip + "</b>";
+        b.addEventListener("click", async () => {
+          $("#ipInput").value = d.ip;
+          const ok = await saveConfig({tv_ip: d.ip});
+          if (ok) toast(st.connected ? "✅ Conectado: " + d.name : "IP salvo: " + d.ip);
+        });
+        list.appendChild(b);
+      });
     }
-    return;
+    list.classList.remove("hidden");
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = "📡 Descobrir TV na rede";
   }
-  video.srcObject = stream;
-  try { await video.play(); } catch (e) {}
-  btnCamera.textContent = '🔄 TROCAR CÂMERA (' + (modo === 'user' ? 'frontal' : 'traseira') + ')';
-  status(modelosProntos
-    ? 'Câmera ligada! Capture o fundo com a cena vazia.'
-    : 'Câmera ligada! Aguarde os modelos…');
-  if (navigator.wakeLock) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
-  carregarModelos();          // garante que os modelos continuem carregando
-}
-
-/* ============================================================
-   Captura do fundo
-   ============================================================ */
-async function capturarFundo() {
-  if (!stream || capturando) {
-    if (!stream) status('Toque no botão verde e permita a câmera primeiro.', true);
-    return;
-  }
-  capturando = true;
-  btnFundo.disabled = true;
-  for (let s = 5; s > 0; s--) {
-    elContador.textContent = String(s);
-    elContador.classList.remove('oculto');
-    status('Saia do quadro! Capturando o fundo em ' + s + 's…');
-    await new Promise(r => setTimeout(r, 1000));
-  }
-  elContador.classList.add('oculto');
-  fundoCtx.drawImage(video, 0, 0, fundoCv.width, fundoCv.height);
-  fundoOk = true;
-  capturando = false;
-  btnFundo.disabled = false;
-  status('Fundo capturado ✓ Toque em LIGAR EFEITO e feche o punho para se apagar.');
-}
-
-/* ============================================================
-   Laço principal — desenho todo quadro; IA em cadência própria
-   ============================================================ */
-function tick() {
-  requestAnimationFrame(tick);
-  if (!stream || !detector || !mao || video.readyState < 2) return;
-  const w = video.videoWidth, h = video.videoHeight;
-  if (!w) return;
-
-  if (tela.width !== w) {                 // primeira vez (ou troca de câmera)
-    tela.width = w; tela.height = h;
-    fundoCv.width = w; fundoCv.height = h;
-    detCv.width = DET_W;
-    detCv.height = Math.max(1, Math.round(h * DET_W / w));
-    if (fundoOk) {
-      fundoOk = false;
-      status('A câmera mudou: capture o fundo de novo.');
-    }
-  }
-
-  const t = performance.now();
-
-  // --- mão: a cada 60 ms ---
-  if (t - ultimaMaoT >= INTERVALO_MAO) {
-    ultimaMaoT = t;
-    detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
-    const res = mao.detectForVideo(detCv, t);
-    const lista = res.landmarks || res.handLandmarks || [];
-    fechadaAtual = classificarMao(lista[0] || null);
-  }
-
-  // --- pessoa: só quando precisa (efeito/caixa), e mais devagar sem efeito ---
-  const intervaloPessoa = efeito ? INTERVALO_PESSOA : 500;
-  if ((efeito || mostrarCaixa) && t - ultimaPessoaT >= intervaloPessoa) {
-    ultimaPessoaT = t;
-    detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
-    const res = detector.detectForVideo(detCv, t);
-    const bb = maiorBBoxPessoa(res.detections || [], detCv.width, detCv.height);
-    if (bb) {
-      const sx = w / detCv.width, sy = h / detCv.height;
-      ultimoBBox = {
-        x: Math.round(bb.x * sx), y: Math.round(bb.y * sy),
-        w: Math.round(bb.w * sx), h: Math.round(bb.h * sy)
-      };
-    } else {
-      ultimoBBox = null;
-    }
-  }
-
-  // debounce baseado em tempo (200 ms reais, independente do FPS)
-  const ativo = estado.update(fechadaAtual === true, t);
-  elPunho.classList.toggle('oculto', fechadaAtual !== true);
-
-  // desenha o quadro da câmera — todo quadro, sem esperar os modelos
-  ctx.drawImage(video, 0, 0, w, h);
-
-  // efeito: cola o fundo por cima da pessoa (só com punho fechado, após o debounce)
-  const bbox = ultimoBBox;
-  if (efeito && ativo && bbox && fundoOk) {
-    ctx.drawImage(fundoCv, bbox.x, bbox.y, bbox.w, bbox.h,
-                         bbox.x, bbox.y, bbox.w, bbox.h);
-  }
-
-  // caixa DEPOIS do efeito (fica visível — no Python ela era pintada antes e sumia)
-  if (bbox && mostrarCaixa) {
-    ctx.strokeStyle = '#2f2';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(bbox.x, bbox.y, bbox.w, bbox.h);
-  }
-}
-
-/* ============================================================
-   Botões
-   ============================================================ */
-btnCamera.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  if (stream) modo = (modo === 'user') ? 'environment' : 'user';
-  iniciarCamera();
-});
-btnFundo.addEventListener('pointerdown', e => { e.preventDefault(); capturarFundo(); });
-btnEfeito.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  if (!modelosProntos) {
-    status('Os modelos ainda estão carregando…', true);
-    return;
-  }
-  if (!fundoOk) {
-    status('Capture o fundo primeiro (cena sem ninguém).', true);
-    return;
-  }
-  efeito = !efeito;
-  btnEfeito.textContent = efeito ? 'DESLIGAR EFEITO' : 'LIGAR EFEITO';
-  btnEfeito.classList.toggle('ligado', efeito);
-  status(efeito
-    ? 'Efeito ligado! Feche o punho para se apagar do vídeo.'
-    : 'Efeito desligado.');
-});
-btnBbox.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  mostrarCaixa = !mostrarCaixa;
-  btnBbox.textContent = 'CAIXA DA PESSOA: ' + (mostrarCaixa ? 'ON' : 'OFF');
 });
 
-document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-document.addEventListener('gesturestart', e => e.preventDefault());
-document.addEventListener('contextmenu', e => e.preventDefault());
+$("#pairStartBtn").addEventListener("click", async () => {
+  try {
+    await api("/api/pair/start", {}, 15000);
+    $("#pairCodeRow").classList.remove("hidden");
+    toast("Código de 6 dígitos apareceu na TV 👀");
+    $("#pairCode").focus();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
 
-// carrega os modelos em paralelo — a permissão da câmera espera o botão verde
-carregarModelos();
-tick();
-  </script>
+$("#pairFinishBtn").addEventListener("click", async () => {
+  const code = $("#pairCode").value.trim();
+  if (!/^\d{6}$/.test(code)) { toast("Digite o código de 6 dígitos.", true); return; }
+  try {
+    const j = await api("/api/pair/finish", {code}, 20000);
+    $("#pairCodeRow").classList.add("hidden");
+    $("#pairCode").value = "";
+    if (j.status) applyStatus(j.status);
+    toast(st.connected ? "✅ Pareado e conectado!" : "Pareado! Toque em Salvar para conectar.");
+    refresh();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+$("#textSendBtn").addEventListener("click", async () => {
+  const t = $("#textInput").value.trim();
+  if (!t) { toast("Digite um texto primeiro.", true); return; }
+  try {
+    await api("/api/text", {text: t}, 12000);
+    toast("Texto enviado ✍️");
+    $("#textInput").value = "";
+    lastAction = 'texto "' + t + '"';
+    render();
+  } catch (e) {
+    toast(e.message, true);
+    if (e.pairing_needed) { st.pairing_needed = true; render(); }
+  }
+});
+$("#textInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#textSendBtn").click(); });
+
+/* ---------------- início ---------------- */
+refresh();
+setInterval(refresh, 2500);
+</script>
 </body>
 </html>
