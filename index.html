@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111">
+<title>DeleteMe — iPhone</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111;
+               overscroll-behavior: none; touch-action: none;
+               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+  /* vídeo fica "invisível" embaixo do canvas (o iOS exige que esteja tocando) */
+  #video { position: fixed; inset: 0; width: 100%; height: 100%;
+           object-fit: cover; opacity: 0.01; }
+  #tela  { position: fixed; inset: 0; width: 100%; height: 100%;
+           object-fit: cover; background: #111; }
+
+  #status { position: fixed; top: calc(env(safe-area-inset-top) + 12px); left: 50%;
+            transform: translateX(-50%); max-width: 92vw; padding: 10px 16px;
+            border-radius: 999px; background: rgba(0,0,0,.55); color: #fff;
+            font-size: 13px; line-height: 1.45; text-align: center; }
+
+  #punho { position: fixed; top: calc(env(safe-area-inset-top) + 58px); left: 50%;
+           transform: translateX(-50%); padding: 8px 18px; border-radius: 999px;
+           background: rgba(255,80,80,.85); color: #fff; font-weight: 700;
+           font-size: 14px; letter-spacing: .4px; }
+
+  #contador { position: fixed; inset: 0; display: flex; align-items: center;
+              justify-content: center; font-size: 160px; font-weight: 800;
+              color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.6); pointer-events: none; }
+
+  #acoes { position: fixed; left: 0; right: 0;
+           bottom: calc(env(safe-area-inset-bottom) + 14px);
+           display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+           padding: 0 12px; }
+  .btn { padding: 15px 18px; border-radius: 16px; background: rgba(255,255,255,.16);
+         color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .4px;
+         border: 1.5px solid rgba(255,255,255,.35); cursor: pointer;
+         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+         text-align: center; min-width: 44vw; }
+  .btn:active { transform: scale(.96); background: rgba(255,255,255,.32); }
+  .btn.destaque { background: rgba(60,200,90,.5); border-color: rgba(120,255,160,.7); }
+  .btn.ligado  { background: rgba(220,60,60,.55); border-color: rgba(255,140,140,.8); }
+  .btn[disabled] { opacity: .45; }
+
+  .oculto { display: none !important; }
+</style>
+</head>
+<body>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="tela"></canvas>
+
+  <div id="status">Carregando…</div>
+  <div id="punho" class="oculto">✊ punho detectado</div>
+  <div id="contador" class="oculto">5</div>
+
+  <div id="acoes">
+    <div class="btn destaque" id="btnCamera">INICIAR CÂMERA</div>
+    <div class="btn" id="btnFundo">CAPTURAR FUNDO (5s)</div>
+    <div class="btn" id="btnEfeito">LIGAR EFEITO</div>
+    <div class="btn" id="btnBbox">CAIXA DA PESSOA: ON</div>
+  </div>
+
+  <canvas id="fundo" class="oculto"></canvas>
+
+  <script type="module">
+import { KeepState, classificarMao, maiorBBoxPessoa } from './logica.mjs';
+
+const video = document.getElementById('video');
+const tela = document.getElementById('tela');
+const ctx = tela.getContext('2d');
+const fundoCv = document.getElementById('fundo');
+const fundoCtx = fundoCv.getContext('2d');
+const elStatus = document.getElementById('status');
+const elPunho = document.getElementById('punho');
+const elContador = document.getElementById('contador');
+const btnCamera = document.getElementById('btnCamera');
+const btnFundo = document.getElementById('btnFundo');
+const btnEfeito = document.getElementById('btnEfeito');
+const btnBbox = document.getElementById('btnBbox');
+
+function status(t) { elStatus.textContent = t; }
+function mostrar(el, sim) { el.classList.toggle('oculto', !sim); }
+
+const estado = new KeepState(0.2, 30, false);   // debounce igual ao Python
+let detector = null, mao = null;
+let stream = null, modo = 'user';               // 'user' = frontal · 'environment' = traseira
+let fundoOk = false, efeito = false, mostrarCaixa = true, capturando = false;
+let ultimoT = -1;
+
+// quadro reduzido para os modelos (caixa é redimensionada de volta)
+const DET_W = 640;
+const detCv = document.createElement('canvas');
+const detCtx = detCv.getContext('2d');
+
+// ---------------- modelos de visão ----------------
+async function criarModelo(criar, fileset, opcoes) {
+  try {
+    return await criar.createFromOptions(fileset, Object.assign({}, opcoes,
+      { baseOptions: Object.assign({}, opcoes.baseOptions, { delegate: 'GPU' }) }));
+  } catch (e) {
+    return await criar.createFromOptions(fileset, opcoes);   // fallback CPU
+  }
+}
+
+async function carregarModelos() {
+  status('Carregando modelos de visão…');
+  try {
+    const mp = await import('./tasks-vision/vision_bundle.mjs');
+    const fileset = await mp.FilesetResolver.forVisionTasks('./tasks-vision');
+
+    detector = await criarModelo(mp.ObjectDetector, fileset, {
+      baseOptions: { modelAssetPath: './models/efficientdet_lite0.tflite' },
+      runningMode: 'VIDEO',
+      scoreThreshold: 0.5,
+      categoryAllowlist: ['person']
+    });
+    mao = await criarModelo(mp.HandLandmarker, fileset, {
+      baseOptions: { modelAssetPath: './models/hand_landmarker.task' },
+      runningMode: 'VIDEO',
+      numHands: 1
+    });
+    status('Modelos prontos ✓ Toque em INICIAR CÂMERA.');
+  } catch (e) {
+    status('Não consegui carregar os modelos. Abra a página pelo link do servidor (HTTPS), não como arquivo solto.');
+    console.error(e);
+  }
+}
+
+// ---------------- câmera ----------------
+async function iniciarCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status('Este recurso precisa de HTTPS. Abra pelo link do servidor.');
+    return;
+  }
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: modo, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+  } catch (e) {
+    status('Sem acesso à câmera. Toque em INICIAR CÂMERA e permita o uso da câmera.');
+    return;
+  }
+  video.srcObject = stream;
+  try { await video.play(); } catch (e) {}
+  btnCamera.textContent = 'TROCAR CÂMERA (' + (modo === 'user' ? 'frontal' : 'traseira') + ')';
+  status('Câmera ligada. Com a cena vazia, toque em CAPTURAR FUNDO.');
+  if (navigator.wakeLock) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
+}
+
+// ---------------- captura do fundo ----------------
+async function capturarFundo() {
+  if (!stream || capturando) {
+    if (!stream) status('Ligue a câmera primeiro.');
+    return;
+  }
+  capturando = true;
+  btnFundo.disabled = true;
+  for (let s = 5; s > 0; s--) {
+    elContador.textContent = String(s);
+    mostrar(elContador, true);
+    status('Saia do quadro! Capturando o fundo em ' + s + 's…');
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  mostrar(elContador, false);
+  fundoCtx.drawImage(video, 0, 0, fundoCv.width, fundoCv.height);
+  fundoOk = true;
+  capturando = false;
+  btnFundo.disabled = false;
+  status('Fundo capturado ✓ Toque em LIGAR EFEITO e feche o punho para se apagar.');
+}
+
+// ---------------- laço principal ----------------
+function tick() {
+  requestAnimationFrame(tick);
+  if (!stream || !detector || !mao || video.readyState < 2) return;
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w) return;
+
+  if (tela.width !== w) {                 // primeira vez (ou troca de câmera)
+    tela.width = w; tela.height = h;
+    fundoCv.width = w; fundoCv.height = h;
+    detCv.width = DET_W;
+    detCv.height = Math.max(1, Math.round(h * DET_W / w));
+    fundoOk = false;
+    status('Câmera mudou: capture o fundo de novo.');
+  }
+
+  const t = performance.now();
+  if (t <= ultimoT) return;               // timestamps precisam crescer
+  ultimoT = t;
+
+  detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
+  const resMao = mao.detectForVideo(detCv, t);
+  const resDet = detector.detectForVideo(detCv, t);
+
+  // mão aberta/fechada (sem mão = mão aberta, igual ao Python)
+  const lista = resMao.landmarks || resMao.handLandmarks || [];
+  const pontos = lista[0] || null;
+  const fechada = classificarMao(pontos);
+  mostrar(elPunho, fechada === true);
+  const ativo = estado.update(fechada === true);
+
+  // desenha o quadro da câmera
+  ctx.drawImage(video, 0, 0, w, h);
+
+  // maior pessoa (caixa no tamanho do vídeo)
+  let bbox = maiorBBoxPessoa(resDet.detections || [], detCv.width, detCv.height);
+  if (bbox) {
+    const sx = w / detCv.width, sy = h / detCv.height;
+    bbox = {
+      x: Math.round(bbox.x * sx), y: Math.round(bbox.y * sy),
+      w: Math.round(bbox.w * sx), h: Math.round(bbox.h * sy)
+    };
+  }
+
+  // efeito: cola o fundo por cima da pessoa (só com punho fechado, após o debounce)
+  if (efeito && ativo && bbox && fundoOk) {
+    ctx.drawImage(fundoCv, bbox.x, bbox.y, bbox.w, bbox.h,
+                         bbox.x, bbox.y, bbox.w, bbox.h);
+  }
+
+  // caixa DEPOIS do efeito (assim ela fica visível — no Python ela era pintada por cima e sumia)
+  if (bbox && mostrarCaixa) {
+    ctx.strokeStyle = '#2f2';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bbox.x, bbox.y, bbox.w, bbox.h);
+  }
+}
+
+// ---------------- botões ----------------
+btnCamera.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (stream) modo = (modo === 'user') ? 'environment' : 'user';
+  iniciarCamera();
+});
+btnFundo.addEventListener('pointerdown', e => { e.preventDefault(); capturarFundo(); });
+btnEfeito.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (!fundoOk) {
+    status('Capture o fundo primeiro (cena sem ninguém).');
+    return;
+  }
+  efeito = !efeito;
+  btnEfeito.textContent = efeito ? 'DESLIGAR EFEITO' : 'LIGAR EFEITO';
+  btnEfeito.classList.toggle('ligado', efeito);
+  status(efeito
+    ? 'Efeito ligado! Feche o punho para se apagar do vídeo.'
+    : 'Efeito desligado.');
+});
+btnBbox.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  mostrarCaixa = !mostrarCaixa;
+  btnBbox.textContent = 'CAIXA DA PESSOA: ' + (mostrarCaixa ? 'ON' : 'OFF');
+});
+
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+carregarModelos();
+tick();
+  </script>
+</body>
+</html>
