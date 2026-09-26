@@ -26,6 +26,7 @@
             transform: translateX(-50%); max-width: 92vw; padding: 10px 16px;
             border-radius: 999px; background: rgba(0,0,0,.55); color: #fff;
             font-size: 13px; line-height: 1.45; text-align: center; }
+  #status.erro { background: rgba(200,40,40,.8); }
 
   #punho { position: fixed; top: calc(env(safe-area-inset-top) + 58px); left: 50%;
            transform: translateX(-50%); padding: 8px 18px; border-radius: 999px;
@@ -46,7 +47,7 @@
          backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
          text-align: center; min-width: 44vw; }
   .btn:active { transform: scale(.96); background: rgba(255,255,255,.32); }
-  .btn.destaque { background: rgba(60,200,90,.5); border-color: rgba(120,255,160,.7); }
+  .btn.destaque { background: rgba(60,200,90,.55); border-color: rgba(120,255,160,.8); }
   .btn.ligado  { background: rgba(220,60,60,.55); border-color: rgba(255,140,140,.8); }
   .btn[disabled] { opacity: .45; }
 
@@ -57,12 +58,12 @@
   <video id="video" autoplay playsinline muted></video>
   <canvas id="tela"></canvas>
 
-  <div id="status">Carregando…</div>
+  <div id="status">Toque no botão verde para começar.</div>
   <div id="punho" class="oculto">✊ punho detectado</div>
   <div id="contador" class="oculto">5</div>
 
   <div id="acoes">
-    <div class="btn destaque" id="btnCamera">INICIAR CÂMERA</div>
+    <div class="btn destaque" id="btnCamera">📷 PERMITIR CÂMERA E COMEÇAR</div>
     <div class="btn" id="btnFundo">CAPTURAR FUNDO (5s)</div>
     <div class="btn" id="btnEfeito">LIGAR EFEITO</div>
     <div class="btn" id="btnBbox">CAIXA DA PESSOA: ON</div>
@@ -70,9 +71,70 @@
 
   <canvas id="fundo" class="oculto"></canvas>
 
-  <script type="module">
-import { KeepState, classificarMao, maiorBBoxPessoa } from './logica.mjs';
+  <script>
+'use strict';
 
+/* ============================================================
+   Lógica pura (a mesma de logica.mjs — espelhada aqui para o
+   app ser um arquivo único, sem imports que possam falhar)
+   ============================================================ */
+function KeepState(keepfor, fps, initialState) {
+  this.keepfor = Math.trunc(keepfor * (fps || 1));
+  this.i = this.keepfor;
+  this.state = (initialState === undefined) ? false : initialState;
+}
+KeepState.prototype.update = function (state) {
+  if (state === this.state) {
+    this.i += 1;
+    if (this.i > this.keepfor) this.i = this.keepfor;
+    return this.state;
+  }
+  this.i -= 1;
+  if (this.i < 0) {
+    this.i = this.keepfor;
+    this.state = state;
+  }
+  return this.state;
+};
+
+function distancia(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function contarDedosEstendidos(landmarks) {
+  const pulso = landmarks[0];
+  const pares = [[8, 6], [12, 10], [16, 14], [20, 18]];
+  let n = 0;
+  for (const par of pares) {
+    if (distancia(landmarks[par[0]], pulso) > distancia(landmarks[par[1]], pulso)) n++;
+  }
+  return n;
+}
+function classificarMao(landmarks) {
+  if (!landmarks || landmarks.length === 0) return null;
+  return contarDedosEstendidos(landmarks) < 3;
+}
+function maiorBBoxPessoa(detections, largura, altura, padding) {
+  padding = (padding === undefined) ? 10 : padding;
+  let area = 0, bbox = null;
+  for (const d of detections) {
+    const b = d.boundingBox;
+    if (!b) continue;
+    if (b.width * b.height > area) {
+      area = b.width * b.height;
+      const x = Math.max(0, Math.trunc(b.originX) - padding);
+      const y = Math.max(0, Math.trunc(b.originY) - padding);
+      const w = Math.min(largura - x, Math.trunc(b.width) + padding * 2);
+      const h = altura - y;
+      bbox = { x: x, y: y, w: w, h: h };
+    }
+  }
+  return bbox;
+}
+
+/* ============================================================
+   Estado e elementos
+   ============================================================ */
 const video = document.getElementById('video');
 const tela = document.getElementById('tela');
 const ctx = tela.getContext('2d');
@@ -86,58 +148,157 @@ const btnFundo = document.getElementById('btnFundo');
 const btnEfeito = document.getElementById('btnEfeito');
 const btnBbox = document.getElementById('btnBbox');
 
-function status(t) { elStatus.textContent = t; }
-function mostrar(el, sim) { el.classList.toggle('oculto', !sim); }
+function status(t, erro) {
+  elStatus.textContent = t;
+  elStatus.classList.toggle('erro', !!erro);
+}
 
 const estado = new KeepState(0.2, 30, false);   // debounce igual ao Python
-let detector = null, mao = null;
+let mp = null, detector = null, mao = null;
 let stream = null, modo = 'user';               // 'user' = frontal · 'environment' = traseira
 let fundoOk = false, efeito = false, mostrarCaixa = true, capturando = false;
-let ultimoT = -1;
+let ultimoT = -1, modelosProntos = false, carregandoModelos = false;
 
-// quadro reduzido para os modelos (caixa é redimensionada de volta)
+const forcadoCdn = location.search.indexOf('cdn') >= 0;
+const forcadoCpu = location.search.indexOf('cpu') >= 0;
+
+// quadro reduzido para os modelos (a caixa é redimensionada de volta)
 const DET_W = 640;
 const detCv = document.createElement('canvas');
 const detCtx = detCv.getContext('2d');
 
-// ---------------- modelos de visão ----------------
-async function criarModelo(criar, fileset, opcoes) {
-  try {
-    return await criar.createFromOptions(fileset, Object.assign({}, opcoes,
-      { baseOptions: Object.assign({}, opcoes.baseOptions, { delegate: 'GPU' }) }));
-  } catch (e) {
-    return await criar.createFromOptions(fileset, opcoes);   // fallback CPU
+/* ============================================================
+   Endereços: primeiro os arquivos locais; se faltarem, CDN
+   ============================================================ */
+const CDN_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm';
+const CDN_BUNDLE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
+const MODELOS = {
+  det: {
+    local: './models/efficientdet_lite0.tflite',
+    cdn: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
+  },
+  mao: {
+    local: './models/hand_landmarker.task',
+    cdn: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
   }
+};
+
+async function existe(url) {
+  try {
+    const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+async function baixarBuffer(url, aoProgresso) {
+  const resp = await fetch(url, { cache: 'force-cache' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ao baixar ' + url);
+  const total = Number(resp.headers.get('Content-Length')) || 0;
+  const reader = resp.body.getReader();
+  const partes = [];
+  let lidos = 0;
+  for (;;) {
+    const r = await reader.read();
+    if (r.done) break;
+    partes.push(r.value);
+    lidos += r.value.length;
+    if (aoProgresso) aoProgresso(lidos, total);
+  }
+  const buf = new Uint8Array(lidos);
+  let off = 0;
+  for (const p of partes) { buf.set(p, off); off += p.length; }
+  return buf;
+}
+
+function comTimeout(promessa, ms, oQue) {
+  return Promise.race([
+    promessa,
+    new Promise((_, rejeita) => setTimeout(() => rejeita(new Error('tempo esgotado: ' + oQue)), ms))
+  ]);
+}
+
+/* ============================================================
+   Carregamento da biblioteca + modelos (com diagnóstico)
+   ============================================================ */
+async function criarModelo(criar, fileset, opcoes) {
+  if (!forcadoCpu) {
+    try {
+      return await comTimeout(criar.createFromOptions(fileset, Object.assign({}, opcoes,
+        { baseOptions: Object.assign({}, opcoes.baseOptions, { delegate: 'GPU' }) })),
+        30000, 'GPU');
+    } catch (e) {
+      console.warn('GPU não rolou, usando CPU:', e);
+    }
+  }
+  return await comTimeout(criar.createFromOptions(fileset, opcoes), 60000, 'CPU');
 }
 
 async function carregarModelos() {
-  status('Carregando modelos de visão…');
+  if (carregandoModelos || modelosProntos) return;
+  carregandoModelos = true;
   try {
-    const mp = await import('./tasks-vision/vision_bundle.mjs');
-    const fileset = await mp.FilesetResolver.forVisionTasks('./tasks-vision');
+    // --- biblioteca de visão (local ou CDN) ---
+    const localOk = !forcadoCdn && (await existe('./tasks-vision/vision_wasm_internal.js'));
+    const origemWasm = localOk ? './tasks-vision' : CDN_WASM;
+    if (!localOk && forcadoCdn) console.info('modo CDN forçado');
+
+    status('Carregando biblioteca de visão (' + (localOk ? 'local' : 'online') + ')…');
+    if (localOk) {
+      mp = await import('./tasks-vision/vision_bundle.mjs');
+    } else {
+      mp = await import(CDN_BUNDLE);
+    }
+    const fileset = await mp.FilesetResolver.forVisionTasks(origemWasm);
+
+    // --- modelos (local ou CDN, com progresso) ---
+    async function pegarModelo(ref, nome) {
+      const usarLocal = !forcadoCdn && (await existe(ref.local));
+      const url = usarLocal ? ref.local : ref.cdn;
+      return {
+        buffer: await baixarBuffer(url, (lidos, total) => {
+          const pct = total ? Math.round(lidos / total * 100) + '%' : (lidos / 1048576).toFixed(1) + 'MB';
+          status('Baixando ' + nome + '… ' + pct + (usarLocal ? '' : ' (online)'));
+        }),
+        fonte: usarLocal ? 'local' : 'online'
+      };
+    }
+
+    const a = await pegarModelo(MODELOS.det, 'detector de pessoas');
+    const b = await pegarModelo(MODELOS.mao, 'detector de mãos');
+    status('Carregando os modelos na memória…');
 
     detector = await criarModelo(mp.ObjectDetector, fileset, {
-      baseOptions: { modelAssetPath: './models/efficientdet_lite0.tflite' },
+      baseOptions: { modelAssetBuffer: a.buffer },
       runningMode: 'VIDEO',
       scoreThreshold: 0.5,
       categoryAllowlist: ['person']
     });
     mao = await criarModelo(mp.HandLandmarker, fileset, {
-      baseOptions: { modelAssetPath: './models/hand_landmarker.task' },
+      baseOptions: { modelAssetBuffer: b.buffer },
       runningMode: 'VIDEO',
       numHands: 1
     });
-    status('Modelos prontos ✓ Toque em INICIAR CÂMERA.');
+
+    modelosProntos = true;
+    const origem = (a.fonte === 'local' && b.fonte === 'local') ? 'locais' : 'online';
+    status(stream
+      ? 'Tudo pronto (' + origem + ')! Feche o punho para se apagar.'
+      : 'Tudo pronto (' + origem + ')! Toque no botão verde e permita a câmera.');
   } catch (e) {
-    status('Não consegui carregar os modelos. Abra a página pelo link do servidor (HTTPS), não como arquivo solto.');
     console.error(e);
+    status('Erro ao carregar os modelos: ' + (e && e.message ? e.message : e) +
+      ' — se você publicou só o HTML, os arquivos models/ e tasks-vision/ podem estar faltando.', true);
+  } finally {
+    carregandoModelos = false;
   }
 }
 
-// ---------------- câmera ----------------
+/* ============================================================
+   Câmera (a permissão aparece no primeiro toque do botão)
+   ============================================================ */
 async function iniciarCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    status('Este recurso precisa de HTTPS. Abra pelo link do servidor.');
+    status('Este recurso precisa de HTTPS. Abra pelo link do site, não como arquivo.', true);
     return;
   }
   if (stream) stream.getTracks().forEach(t => t.stop());
@@ -147,31 +308,46 @@ async function iniciarCamera() {
       audio: false
     });
   } catch (e) {
-    status('Sem acesso à câmera. Toque em INICIAR CÂMERA e permita o uso da câmera.');
+    const n = e && e.name;
+    if (n === 'NotAllowedError' || n === 'SecurityError') {
+      status('Você negou a câmera. No Safari: toque em "AA" na barra de endereço → ' +
+        'Configurações do site → Câmera → Permitir e recarregue. Depois toque no botão verde.', true);
+    } else if (n === 'NotFoundError') {
+      status('Nenhuma câmera encontrada neste aparelho.', true);
+    } else if (n === 'NotReadableError') {
+      status('A câmera está em uso por outro app. Feche-o e tente de novo.', true);
+    } else {
+      status('Não consegui abrir a câmera: ' + (e && e.message ? e.message : e), true);
+    }
     return;
   }
   video.srcObject = stream;
   try { await video.play(); } catch (e) {}
-  btnCamera.textContent = 'TROCAR CÂMERA (' + (modo === 'user' ? 'frontal' : 'traseira') + ')';
-  status('Câmera ligada. Com a cena vazia, toque em CAPTURAR FUNDO.');
+  btnCamera.textContent = '🔄 TROCAR CÂMERA (' + (modo === 'user' ? 'frontal' : 'traseira') + ')';
+  status(modelosProntos
+    ? 'Câmera ligada! Capture o fundo com a cena vazia.'
+    : 'Câmera ligada! Aguarde os modelos…');
   if (navigator.wakeLock) { try { await navigator.wakeLock.request('screen'); } catch (e) {} }
+  carregarModelos();          // garante que os modelos continuem carregando
 }
 
-// ---------------- captura do fundo ----------------
+/* ============================================================
+   Captura do fundo
+   ============================================================ */
 async function capturarFundo() {
   if (!stream || capturando) {
-    if (!stream) status('Ligue a câmera primeiro.');
+    if (!stream) status('Toque no botão verde e permita a câmera primeiro.', true);
     return;
   }
   capturando = true;
   btnFundo.disabled = true;
   for (let s = 5; s > 0; s--) {
     elContador.textContent = String(s);
-    mostrar(elContador, true);
+    elContador.classList.remove('oculto');
     status('Saia do quadro! Capturando o fundo em ' + s + 's…');
     await new Promise(r => setTimeout(r, 1000));
   }
-  mostrar(elContador, false);
+  elContador.classList.add('oculto');
   fundoCtx.drawImage(video, 0, 0, fundoCv.width, fundoCv.height);
   fundoOk = true;
   capturando = false;
@@ -179,7 +355,9 @@ async function capturarFundo() {
   status('Fundo capturado ✓ Toque em LIGAR EFEITO e feche o punho para se apagar.');
 }
 
-// ---------------- laço principal ----------------
+/* ============================================================
+   Laço principal
+   ============================================================ */
 function tick() {
   requestAnimationFrame(tick);
   if (!stream || !detector || !mao || video.readyState < 2) return;
@@ -191,8 +369,10 @@ function tick() {
     fundoCv.width = w; fundoCv.height = h;
     detCv.width = DET_W;
     detCv.height = Math.max(1, Math.round(h * DET_W / w));
-    fundoOk = false;
-    status('Câmera mudou: capture o fundo de novo.');
+    if (fundoOk) {
+      fundoOk = false;
+      status('A câmera mudou: capture o fundo de novo.');
+    }
   }
 
   const t = performance.now();
@@ -207,7 +387,7 @@ function tick() {
   const lista = resMao.landmarks || resMao.handLandmarks || [];
   const pontos = lista[0] || null;
   const fechada = classificarMao(pontos);
-  mostrar(elPunho, fechada === true);
+  elPunho.classList.toggle('oculto', fechada !== true);
   const ativo = estado.update(fechada === true);
 
   // desenha o quadro da câmera
@@ -229,7 +409,7 @@ function tick() {
                          bbox.x, bbox.y, bbox.w, bbox.h);
   }
 
-  // caixa DEPOIS do efeito (assim ela fica visível — no Python ela era pintada por cima e sumia)
+  // caixa DEPOIS do efeito (fica visível — no Python ela era pintada antes e sumia)
   if (bbox && mostrarCaixa) {
     ctx.strokeStyle = '#2f2';
     ctx.lineWidth = 3;
@@ -237,7 +417,9 @@ function tick() {
   }
 }
 
-// ---------------- botões ----------------
+/* ============================================================
+   Botões
+   ============================================================ */
 btnCamera.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (stream) modo = (modo === 'user') ? 'environment' : 'user';
@@ -246,8 +428,12 @@ btnCamera.addEventListener('pointerdown', e => {
 btnFundo.addEventListener('pointerdown', e => { e.preventDefault(); capturarFundo(); });
 btnEfeito.addEventListener('pointerdown', e => {
   e.preventDefault();
+  if (!modelosProntos) {
+    status('Os modelos ainda estão carregando…', true);
+    return;
+  }
   if (!fundoOk) {
-    status('Capture o fundo primeiro (cena sem ninguém).');
+    status('Capture o fundo primeiro (cena sem ninguém).', true);
     return;
   }
   efeito = !efeito;
@@ -267,6 +453,7 @@ document.addEventListener('touchmove', e => e.preventDefault(), { passive: false
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('contextmenu', e => e.preventDefault());
 
+// carrega os modelos em paralelo — a permissão da câmera espera o botão verde
 carregarModelos();
 tick();
   </script>
