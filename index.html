@@ -78,21 +78,20 @@
    Lógica pura (a mesma de logica.mjs — espelhada aqui para o
    app ser um arquivo único, sem imports que possam falhar)
    ============================================================ */
-function KeepState(keepfor, fps, initialState) {
-  this.keepfor = Math.trunc(keepfor * (fps || 1));
-  this.i = this.keepfor;
-  this.state = (initialState === undefined) ? false : initialState;
+function DebounceTempo(ms) {
+  this.ms = ms;
+  this.state = false;
+  this.desde = null;
 }
-KeepState.prototype.update = function (state) {
+DebounceTempo.prototype.update = function (state, agoraMs) {
   if (state === this.state) {
-    this.i += 1;
-    if (this.i > this.keepfor) this.i = this.keepfor;
+    this.desde = null;
     return this.state;
   }
-  this.i -= 1;
-  if (this.i < 0) {
-    this.i = this.keepfor;
+  if (this.desde === null) this.desde = agoraMs;
+  if (agoraMs - this.desde >= this.ms) {
     this.state = state;
+    this.desde = null;
   }
   return this.state;
 };
@@ -153,17 +152,27 @@ function status(t, erro) {
   elStatus.classList.toggle('erro', !!erro);
 }
 
-const estado = new KeepState(0.2, 30, false);   // debounce igual ao Python
+const estado = new DebounceTempo(200);      // 200 ms de debounce, baseado em tempo
 let mp = null, detector = null, mao = null;
-let stream = null, modo = 'user';               // 'user' = frontal · 'environment' = traseira
+let stream = null, modo = 'user';           // 'user' = frontal · 'environment' = traseira
 let fundoOk = false, efeito = false, mostrarCaixa = true, capturando = false;
-let ultimoT = -1, modelosProntos = false, carregandoModelos = false;
+let modelosProntos = false, carregandoModelos = false;
+
+// cadência das análises de IA — a câmera continua lisa entre elas
+const INTERVALO_MAO = 60;                   // ~15 Hz — suficiente para o punho
+const INTERVALO_PESSOA = 200;               // ~5 Hz — a caixa da pessoa muda devagar
+let ultimaMaoT = -1e9, ultimaPessoaT = -1e9;
+let fechadaAtual = null, ultimoBBox = null;
 
 const forcadoCdn = location.search.indexOf('cdn') >= 0;
 const forcadoCpu = location.search.indexOf('cpu') >= 0;
+const forcadoGpu = location.search.indexOf('gpu') >= 0;
+// no celular o WASM SIMD (CPU) costuma ser mais rápido que o delegado GPU do Safari
+const ehCelular = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
+const tentarGpu = forcadoGpu || (!forcadoCpu && !ehCelular);
 
 // quadro reduzido para os modelos (a caixa é redimensionada de volta)
-const DET_W = 640;
+const DET_W = 320;
 const detCv = document.createElement('canvas');
 const detCtx = detCv.getContext('2d');
 
@@ -221,11 +230,11 @@ function comTimeout(promessa, ms, oQue) {
    Carregamento da biblioteca + modelos (com diagnóstico)
    ============================================================ */
 async function criarModelo(criar, fileset, opcoes) {
-  if (!forcadoCpu) {
+  if (tentarGpu) {
     try {
       return await comTimeout(criar.createFromOptions(fileset, Object.assign({}, opcoes,
         { baseOptions: Object.assign({}, opcoes.baseOptions, { delegate: 'GPU' }) })),
-        30000, 'GPU');
+        10000, 'GPU');
     } catch (e) {
       console.warn('GPU não rolou, usando CPU:', e);
     }
@@ -240,7 +249,6 @@ async function carregarModelos() {
     // --- biblioteca de visão (local ou CDN) ---
     const localOk = !forcadoCdn && (await existe('./tasks-vision/vision_wasm_internal.js'));
     const origemWasm = localOk ? './tasks-vision' : CDN_WASM;
-    if (!localOk && forcadoCdn) console.info('modo CDN forçado');
 
     status('Carregando biblioteca de visão (' + (localOk ? 'local' : 'online') + ')…');
     if (localOk) {
@@ -356,7 +364,7 @@ async function capturarFundo() {
 }
 
 /* ============================================================
-   Laço principal
+   Laço principal — desenho todo quadro; IA em cadência própria
    ============================================================ */
 function tick() {
   requestAnimationFrame(tick);
@@ -376,34 +384,43 @@ function tick() {
   }
 
   const t = performance.now();
-  if (t <= ultimoT) return;               // timestamps precisam crescer
-  ultimoT = t;
 
-  detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
-  const resMao = mao.detectForVideo(detCv, t);
-  const resDet = detector.detectForVideo(detCv, t);
-
-  // mão aberta/fechada (sem mão = mão aberta, igual ao Python)
-  const lista = resMao.landmarks || resMao.handLandmarks || [];
-  const pontos = lista[0] || null;
-  const fechada = classificarMao(pontos);
-  elPunho.classList.toggle('oculto', fechada !== true);
-  const ativo = estado.update(fechada === true);
-
-  // desenha o quadro da câmera
-  ctx.drawImage(video, 0, 0, w, h);
-
-  // maior pessoa (caixa no tamanho do vídeo)
-  let bbox = maiorBBoxPessoa(resDet.detections || [], detCv.width, detCv.height);
-  if (bbox) {
-    const sx = w / detCv.width, sy = h / detCv.height;
-    bbox = {
-      x: Math.round(bbox.x * sx), y: Math.round(bbox.y * sy),
-      w: Math.round(bbox.w * sx), h: Math.round(bbox.h * sy)
-    };
+  // --- mão: a cada 60 ms ---
+  if (t - ultimaMaoT >= INTERVALO_MAO) {
+    ultimaMaoT = t;
+    detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
+    const res = mao.detectForVideo(detCv, t);
+    const lista = res.landmarks || res.handLandmarks || [];
+    fechadaAtual = classificarMao(lista[0] || null);
   }
 
+  // --- pessoa: só quando precisa (efeito/caixa), e mais devagar sem efeito ---
+  const intervaloPessoa = efeito ? INTERVALO_PESSOA : 500;
+  if ((efeito || mostrarCaixa) && t - ultimaPessoaT >= intervaloPessoa) {
+    ultimaPessoaT = t;
+    detCtx.drawImage(video, 0, 0, detCv.width, detCv.height);
+    const res = detector.detectForVideo(detCv, t);
+    const bb = maiorBBoxPessoa(res.detections || [], detCv.width, detCv.height);
+    if (bb) {
+      const sx = w / detCv.width, sy = h / detCv.height;
+      ultimoBBox = {
+        x: Math.round(bb.x * sx), y: Math.round(bb.y * sy),
+        w: Math.round(bb.w * sx), h: Math.round(bb.h * sy)
+      };
+    } else {
+      ultimoBBox = null;
+    }
+  }
+
+  // debounce baseado em tempo (200 ms reais, independente do FPS)
+  const ativo = estado.update(fechadaAtual === true, t);
+  elPunho.classList.toggle('oculto', fechadaAtual !== true);
+
+  // desenha o quadro da câmera — todo quadro, sem esperar os modelos
+  ctx.drawImage(video, 0, 0, w, h);
+
   // efeito: cola o fundo por cima da pessoa (só com punho fechado, após o debounce)
+  const bbox = ultimoBBox;
   if (efeito && ativo && bbox && fundoOk) {
     ctx.drawImage(fundoCv, bbox.x, bbox.y, bbox.w, bbox.h,
                          bbox.x, bbox.y, bbox.w, bbox.h);
